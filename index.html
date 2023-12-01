@@ -26,7 +26,7 @@
         }
 
         function getHijriDate(date) {
-            var hijriApiUrl = `http://api.aladhan.com/v1/gToH/${date}`;
+            var hijriApiUrl = `https://api.aladhan.com/v1/gToH/${date}`;
 
             return fetch(hijriApiUrl)
                 .then(response => response.json())
