@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jadwal Sholat</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <h1>Jadwal Sholat</h1>
+    <div class="card" id="location"></div>
+    <div class="card" id="prayerTimes"></div>
+    <div id="countdown"></div>
+    <div id="currentDateTime"></div>
+    <div id="error"></div>
+
+    <script>
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(getPrayerTimes, showError);
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        }
+
+        function getHijriDate(date) {
+            var hijriApiUrl = `http://api.aladhan.com/v1/gToH/${date}`;
+
+            return fetch(hijriApiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.data && data.data.hijri) {
+                        var hijriDate = data.data.hijri;
+
+                        // Map of Hijri month names in Indonesian
+                        var hijriMonthNamesId = [
+                            "Muharram", "Safar", "Rabi'ul Awwal", "Rabi'ul Akhir",
+                            "Jumadil Awwal", "Jumadil Akhir", "Rajab", "Sha'ban",
+                            "Ramadhan", "Syawwal", "Dhu al-Qi'dah", "Dhu al-Hijjah"
+                        ];
+
+                        // Extract relevant information from the API response
+                        var formattedHijriDate = hijriDate.day;
+                        var hijriMonthEn = hijriDate.month.en;
+                        var hijriMonthId = hijriMonthNamesId[hijriDate.month.number - 1]; // Adjust month number to be 0-based
+
+                        var hijriYear = hijriDate.year;
+
+                        return `${formattedHijriDate} ${hijriMonthId} ${hijriYear} AH`;
+                    } else {
+                        return 'Not available';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching Hijri date:', error);
+                    return 'Not available';
+                });
+        }
+
+        function getPrayerTimes(position) {
+            var latitude = position.coords.latitude;
+            var longitude = position.coords.longitude;
+
+            var nominatimApiUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`;
+
+            fetch(nominatimApiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    var city = data.address.city || data.address.town || data.address.village || "Unknown";
+                    var county = data.address.county || "Unknown";
+                    if (county == "Unknown") {
+                        var county = data.address.village || "Unknown";
+                    }
+                    var state = data.address.state || "Unknown";
+                    var country = data.address.country || "Unknown";
+
+                    document.getElementById("location").innerHTML = `<strong>${city}</strong><br>${county}, ${state}<br>${country}<br><em>Lat: ${latitude}, Long: ${longitude}</em>`;
+                })
+                .catch(error => {
+                    console.error('Error fetching Nominatim data:', error);
+                    document.getElementById("error").innerHTML = 'Error fetching location information.';
+                });
+
+            function updateDateTime() {
+                var currentDate = new Date();
+                var day = currentDate.getDate();
+                var month = currentDate.getMonth() + 1; // Note: Month is zero-based, so we add 1
+                var year = currentDate.getFullYear();
+                var hours = currentDate.getHours();
+                var minutes = currentDate.getMinutes();
+                var seconds = currentDate.getSeconds();
+
+                // Format day and month to have leading zeros if needed
+                var formattedDay = day < 10 ? '0' + day : day;
+                var formattedMonth = month < 10 ? '0' + month : month;
+                var formattedHours = hours < 10 ? '0' + hours : hours;
+                var formattedMinutes = minutes < 10 ? '0' + minutes : minutes;
+                var formattedSeconds = seconds < 10 ? '0' + seconds : seconds;
+
+                var formattedDate = `${formattedDay}-${formattedMonth}-${year}`;
+                var formattedTime = `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
+
+                document.getElementById("currentDateTime").innerHTML = `<strong>Current Date & Time:</strong> ${formattedDate} ${formattedTime}`;
+            }
+
+            // Update the displayed time every second
+            setInterval(updateDateTime, 1000);
+
+            var currentDate = new Date();
+            var day = currentDate.getDate();
+            var month = currentDate.getMonth() + 1; // Note: Month is zero-based, so we add 1
+            var year = currentDate.getFullYear();
+            var hours = currentDate.getHours();
+            var minutes = currentDate.getMinutes();
+            var seconds = currentDate.getSeconds();
+
+            // Format day and month to have leading zeros if needed
+            var formattedDay = day < 10 ? '0' + day : day;
+            var formattedMonth = month < 10 ? '0' + month : month;
+            var formattedHours = hours < 10 ? '0' + hours : hours;
+            var formattedMinutes = minutes < 10 ? '0' + minutes : minutes;
+            var formattedSeconds = seconds < 10 ? '0' + seconds : seconds;
+
+            var formattedDate = `${formattedDay}-${formattedMonth}-${year}`;
+            var formattedTime = `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
+
+            document.getElementById("currentDateTime").innerHTML = `<strong>Current Date & Time:</strong> ${formattedDate} ${formattedTime}`;
+
+            var prayerTimesApiUrl = `https://api.aladhan.com/v1/timings/${formattedDate}?latitude=${latitude}&longitude=${longitude}&method=5`;
+
+            fetch(prayerTimesApiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.data) {
+                        var prayerTimes = data.data.timings;
+
+                        var adjustedFajr = addMinutes(prayerTimes.Fajr, 0);
+                        var adjustedDhuhr = addMinutes(prayerTimes.Dhuhr, 3);
+                        var adjustedAsr = addMinutes(prayerTimes.Asr, 1);
+                        var adjustedMaghrib = addMinutes(prayerTimes.Maghrib, 3);
+                        var adjustedIsha = addMinutes(prayerTimes.Isha, 4);
+
+                        document.getElementById("prayerTimes").innerHTML = `
+                            <strong>Subuh:</strong> ${adjustedFajr || 'Not available'}<br>
+                            <strong>Dzuhur:</strong> ${adjustedDhuhr || 'Not available'}<br>
+                            <strong>Asar:</strong> ${adjustedAsr || 'Not available'}<br>
+                            <strong>Maghrib:</strong> ${adjustedMaghrib || 'Not available'}<br>
+                            <strong>Isya:</strong> ${adjustedIsha || 'Not available'}<br>
+                        `;
+
+                        // Fetch and display Hijri date
+                        getHijriDate(formattedDate)
+                            .then(hijriDate => {
+                                document.getElementById("prayerTimes").innerHTML += `<br><strong>Hijriah :</strong> ${hijriDate}`;
+                            });
+
+                        // Display countdown to the next prayer time
+                        displayCountdownToNextPrayer(prayerTimes);
+                    } else {
+                        document.getElementById("prayerTimes").innerHTML = 'Prayer times data not available.';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching prayer times data:', error);
+                    document.getElementById("error").innerHTML = 'Error fetching prayer times data.';
+                });
+        }
+
+        function addMinutes(time, minutes) {
+            var [hours, mins] = time.split(':');
+            var adjustedTime = new Date(2022, 0, 1, hours, mins);
+            adjustedTime.setMinutes(adjustedTime.getMinutes() + minutes);
+            return adjustedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+
+        function showError(error) {
+            var errorElement = document.getElementById("error");
+            switch (error.code) {
+                case error.PERMISSION_DENIED:
+                    errorElement.innerHTML = "User denied the request for Geolocation.";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorElement.innerHTML = "Location information is unavailable.";
+                    break;
+                case error.TIMEOUT:
+                    errorElement.innerHTML = "The request to get user location timed out.";
+                    break;
+                case error.UNKNOWN_ERROR:
+                    errorElement.innerHTML = "An unknown error occurred.";
+                    break;
+            }
+        }
+
+        function displayCountdownToNextPrayer(prayerTimes) {
+            function getTimeDiffInSeconds(targetTime) {
+                var now = new Date();
+                var targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), targetTime.getHours(), targetTime.getMinutes(), targetTime.getSeconds());
+
+                // If the target time is in the past, set it to the same time on the next day
+                if (targetDate < now) {
+                    targetDate.setDate(targetDate.getDate() + 1);
+                }
+
+                var timeDiff = targetDate - now;
+                return Math.floor(timeDiff / 1000);
+            }
+
+            var now = new Date();
+            var prayerTimesArray = Object.values(prayerTimes);
+            prayerTimesArray = prayerTimesArray.map(time => {
+                var [hours, minutes] = time.split(':');
+                return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+            });
+
+            // Find the next prayer time
+            var nextPrayerTimeIndex = prayerTimesArray.findIndex(time => time > now);
+
+            if (nextPrayerTimeIndex !== -1) {
+                var nextPrayerTime = prayerTimesArray[nextPrayerTimeIndex];
+                var timeDiffInSeconds = getTimeDiffInSeconds(nextPrayerTime);
+
+                // Display countdown every second
+                setInterval(() => {
+                    var hours = Math.floor(timeDiffInSeconds / 3600);
+                    var minutes = Math.floor((timeDiffInSeconds % 3600) / 60);
+                    var seconds = timeDiffInSeconds % 60;
+
+                    document.getElementById("countdown").innerHTML = `<strong>Time Left to Next Prayer:</strong> ${hours}h ${minutes}m ${seconds}s`;
+                    timeDiffInSeconds--;
+
+                    // Once the countdown reaches zero, refresh the page to get updated prayer times
+                    if (timeDiffInSeconds < 0) {
+                        window.location.reload();
+                    }
+                }, 1000);
+            }
+        }
+
+
+
+        getLocation();
+    </script>
+</body>
+
+</html>
