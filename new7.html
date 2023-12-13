@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jadwal Sholat</title>
+  <!-- Tambahkan Bootstrap CSS -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+
+    .container {
+      margin-top: 50px;
+    }
+
+    .jumbotron {
+      background-color: #007bff;
+      color: #fff;
+      padding: 2rem;
+      border-radius: 0.3rem;
+    }
+
+    .card {
+      margin-top: 20px;
+    }
+
+    #area-location {
+      font-size: 18px;
+    }
+
+    #prayer-timings-content ul {
+      list-style-type: none;
+      padding: 0;
+    }
+
+    #countdown-content p {
+      margin-bottom: 0;
+    }
+
+    #real-time {
+      font-weight: bold;
+    }
+
+    .ayah-container {
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+      padding: 10px;
+    }
+
+    @font-face {
+      font-family: "LPMQ";
+      src: url("https://kangismet.github.io/fonts/lpmq.eot");
+      src: url("https://kangismet.github.io/fonts/lpmq.eot?#iefix") format("embedded-opentype"),
+        url("https://kangismet.github.io/fonts/lpmq.ttf") format("truetype");
+      font-weight: 400;
+      font-weight: normal;
+      font-display: swap;
+    }
+
+    .arabic {
+      font-size: 30px;
+      direction: rtl;
+      padding: 16px 16px 4px;
+      line-height: 2.5em;
+      font-family: LPMQ, "Traditional Arabic", Tahoma, sans-serif;
+      font-style: normal;
+      font-weight: 400;
+      text-align: right;
+    }
+
+    .translation {
+      margin-top: 10px;
+      font-style: italic;
+    }
+
+    .footnotes {
+      margin-top: 10px;
+      color: #777;
+    }
+
+    #doa-container {
+      max-width: 600px;
+      margin-top: 50px;
+      margin: auto;
+      border: 1px solid #ccc;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    } /* tidak terpakai */
+
+    #doa-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    #doa-text {
+      font-size: 30px;
+      direction: rtl;
+      padding: 16px 16px 4px;
+      line-height: 2.5em;
+      font-family: LPMQ, "Traditional Arabic", Tahoma, sans-serif;
+      font-style: normal;
+      font-weight: 400;
+      text-align: right;
+    }
+
+    #doa-transliteration {
+      font-style: italic;
+      margin-bottom: 10px;
+    }
+
+    #doa-translation {
+      margin-bottom: 15px;
+    }
+
+    #doa-history {
+      font-size: 14px;
+      color: #777;
+      margin-bottom: 10px;
+    }
+  </style>
+  <script>
+    // Fungsi untuk menampilkan waktu secara real-time
+    function showRealTime() {
+      const timeElement = document.getElementById("real-time");
+      setInterval(() => {
+        const now = new Date();
+        const hours = now.getHours().toString().padStart(2, "0");
+        const minutes = now.getMinutes().toString().padStart(2, "0");
+        const seconds = now.getSeconds().toString().padStart(2, "0");
+        const currentTime = `${hours}:${minutes}:${seconds}`;
+        timeElement.textContent = currentTime;
+      }, 1000); // Update setiap detik
+    }
+
+    // Fungsi untuk mendapatkan lokasi pengguna
+    function getLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(showPosition);
+      } else {
+        alert("Geolocation is not supported by this browser.");
+      }
+    }
+
+    // Fungsi untuk menampilkan hasil lokasi dan memanggil fungsi untuk mengambil jadwal sholat
+    function showPosition(position) {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+
+      // Menambahkan tampilan letak daerah
+      getAreaLocation(latitude, longitude);
+
+      // Mengambil jadwal sholat
+      getPrayerTimings(latitude, longitude);
+
+      // Menampilkan waktu secara real-time
+      showRealTime();
+    }
+
+    // Fungsi untuk mendapatkan letak daerah berdasarkan longitude dan latitude
+    function getAreaLocation(latitude, longitude) {
+      var nominatimApiUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`;
+
+      fetch(nominatimApiUrl)
+        .then((response) => response.json())
+        .then((data) => {
+          var city =
+            data.address.city ||
+            data.address.town ||
+            data.address.village ||
+            "Unknown";
+          var county = data.address.county || "Unknown";
+          if (county == "Unknown") {
+            county = data.address.village || "Unknown";
+          }
+          var state = data.address.state || "Unknown";
+          var country = data.address.country || "Unknown";
+
+          document.getElementById(
+            "location"
+          ).innerHTML = `<strong>${city}</strong><br>${county}, ${state}<br>${country}<br><em>Lat: ${latitude}, Long: ${longitude}</em>`;
+        })
+        .catch((error) => {
+          console.error("Error fetching Nominatim data:", error);
+          document.getElementById("error").innerHTML =
+            "Error fetching location information.";
+        });
+    }
+
+    let formattedDate; // Tambahkan variabel di tingkat lebih tinggi
+
+    // Fungsi untuk mengambil jadwal sholat dari API
+    function getPrayerTimings(latitude, longitude) {
+      const today = new Date();
+      formattedDate =
+        today.getDate() +
+        "-" +
+        (today.getMonth() + 1) +
+        "-" +
+        today.getFullYear();
+      console.log(formattedDate);
+      const apiUrl = `https://api.aladhan.com/v1/timings/${formattedDate}?latitude=${latitude}&longitude=${longitude}&method=20&tune=3,3,8,3,2,3,2,2,-3`;
+
+      fetch(apiUrl)
+        .then((response) => response.json())
+        .then((data) => {
+          // Handle data response
+          const timings = data.data.timings;
+          console.log(timings);
+          const tanggalHijriah = data.data.date.hijri.day;
+          const nomorBulan = data.data.date.hijri.month.number;
+          var namaBulan = [
+            "Muharram",
+            "Safar",
+            "Rabi'ul Awwal",
+            "Rabi'ul Akhir",
+            "Jumadil Awwal",
+            "Jumadil Akhir",
+            "Rajab",
+            "Sha'ban",
+            "Ramadhan",
+            "Syawwal",
+            "Dhu al-Qi'dah",
+            "Dhu al-Hijjah",
+          ];
+          const bulanHijriah = namaBulan[nomorBulan - 1];
+          const tahunHijriah = data.data.date.hijri.year;
+          const hijriDate = `${tanggalHijriah} ${bulanHijriah} ${tahunHijriah} H`; // Ambil nilai tanggal dari objek Hijriah
+
+          const tanggalMasehi = data.data.date.gregorian.day;
+          const nomorBulanMasehi = data.data.date.gregorian.month.number;
+          var namaBulanMasehi = [
+            "Januari",
+            "Februari",
+            "Maret",
+            "April",
+            "Mei",
+            "Juni",
+            "Juli",
+            "Agustus",
+            "September",
+            "Oktober",
+            "November",
+            "Desember",
+          ];
+          const bulanMasehi = namaBulanMasehi[nomorBulanMasehi - 1];
+          const tahunMasehi = data.data.date.gregorian.year;
+          const masehiDate = `${tanggalMasehi} ${bulanMasehi} ${tahunMasehi} M`; // Ambil nilai tanggal dari objek Masehi
+          const date = `${masehiDate} / ${hijriDate}`; // Gabungkan tanggal Masehi dan Hijriah
+          displayPrayerTimings(timings, date);
+
+          // Menampilkan hitung mundur waktu sholat yang akan datang
+          displayCountdown(timings);
+        })
+        .catch((error) => {
+          // Handle error
+          console.error("Error fetching prayer timings:", error);
+        });
+    }
+
+    // Fungsi untuk menampilkan letak daerah di halaman
+    function displayAreaLocation(address) {
+      const areaLocationElement = document.getElementById("area-location");
+      areaLocationElement.innerHTML = `<p><strong>Letak Daerah:</strong> ${address}</p>`;
+    }
+
+    // Fungsi untuk menampilkan jadwal sholat dan bulan Hijriah
+    function displayPrayerTimings(timings, hijriDate) {
+      const prayerTimingsElement = document.getElementById("prayer-timings");
+      let html = "<h2>Jadwal Sholat</h2>";
+
+      // Menampilkan informasi bulan Hijriah
+      html += `<p><strong>Tanggal Hijriah:</strong> ${hijriDate}</p>`;
+
+      // Menampilkan waktu sholat dalam bahasa Indonesia
+      html += "<p><strong>Waktu Sholat:</strong></p>";
+      html += "<ul>";
+      html += `<li><strong>Subuh:</strong> ${timings.Fajr}</li>`;
+      html += `<li><strong>Terbit Matahari:</strong> ${timings.Sunrise}</li>`;
+      html += `<li><strong>Dzuhur:</strong> ${timings.Dhuhr}</li>`;
+      html += `<li><strong>Ashar:</strong> ${timings.Asr}</li>`;
+      html += `<li><strong>Terbenam Matahari:</strong> ${timings.Sunset}</li>`;
+      html += `<li><strong>Maghrib:</strong> ${timings.Maghrib}</li>`;
+      html += `<li><strong>Isya:</strong> ${timings.Isha}</li>`;
+      html += `<li><strong>Imsak:</strong> ${timings.Imsak}</li>`;
+      html += "</ul>";
+
+      // Menampilkan hasil di elemen HTML
+      prayerTimingsElement.innerHTML = html;
+    }
+
+    // Fungsi untuk menampilkan hitung mundur waktu sholat yang akan datang
+    function displayCountdown(timings) {
+      const countdownElement = document.getElementById("countdown");
+      const today = new Date();
+      formattedDate =
+        today.getFullYear() +
+        "-" +
+        (today.getMonth() + 1) +
+        "-" +
+        today.getDate();
+      // Menyiapkan array waktu sholat dan tanggal untuk perbandingan
+      let prayerTimesArray = Object.entries(timings).map(([prayer, time]) => {
+        const prayerTime = new Date(`${formattedDate} ${time}`);
+        return { prayer, time: prayerTime };
+      });
+
+      // Mengurutkan waktu sholat berdasarkan waktu
+      prayerTimesArray.sort((a, b) => a.time - b.time);
+
+      // Filter hanya lima waktu sholat wajib
+      const fiveDailyPrayers = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
+      prayerTimesArray = prayerTimesArray.filter((prayer) =>
+        fiveDailyPrayers.includes(prayer.prayer)
+      );
+
+      // Cari waktu sholat yang akan datang
+      let upcomingPrayer;
+      for (let i = 0; i < prayerTimesArray.length; i++) {
+        if (prayerTimesArray[i].time > new Date()) {
+          upcomingPrayer = prayerTimesArray[i];
+          break;
+        }
+      }
+      if (upcomingPrayer) {
+        // Hitung mundur dan tampilkan
+        setInterval(() => {
+          const currentTime = new Date();
+          const timeDiffInSeconds = Math.floor(
+            (upcomingPrayer.time - currentTime) / 1000
+          );
+          const hours = Math.floor(timeDiffInSeconds / 3600);
+          const minutes = Math.floor((timeDiffInSeconds % 3600) / 60);
+          const seconds = timeDiffInSeconds % 60;
+
+          countdownElement.innerHTML = `<p><strong>Hitung Mundur ${upcomingPrayer.prayer}:</strong> ${hours}h ${minutes}m ${seconds}s`;
+
+          // Jadwalkan notifikasi
+          scheduleNotification(upcomingPrayer.prayer, timeDiffInSeconds);
+
+          if (timeDiffInSeconds <= 0) {
+            window.location.reload();
+          }
+        }, 1000);
+      } else {
+        countdownElement.innerHTML =
+          "<p><strong>Tidak Ada Jadwal Sholat Wajib Berikutnya</strong></p>";
+      }
+    }
+
+    // Fungsi untuk menjadwalkan notifikasi
+    function scheduleNotification(prayerName, timeDiffInSeconds) {
+      // Menit sebelum waktu sholat
+      const minutesBefore = 10 * 60; // 10 menit
+      const notificationTime = timeDiffInSeconds - minutesBefore;
+
+      if (notificationTime == 0) {
+        console.log("waktu sholat akan tiba dalam 10 menit!");
+        showNotification(
+          `Waktu Sholat ${prayerName} akan tiba dalam 10 menit!`
+        );
+      }
+      if (timeDiffInSeconds == 0) {
+        console.log("waktu sholat telah tiba!");
+        showNotification(`Waktu Sholat ${prayerName} telah tiba!`);
+      }
+    }
+
+    // Fungsi untuk menampilkan notifikasi
+    function showNotification(message) {
+      console.log("Showing notification...");
+      // Periksa apakah browser mendukung notifikasi
+      if (!("Notification" in window)) {
+        console.log("This browser does not support notifications.");
+        return;
+      }
+
+      // Periksa apakah notifikasi diizinkan
+      if (Notification.permission === "granted") {
+        // Munculkan notifikasi
+        new Notification("Jadwal Sholat", { body: message });
+      } else {
+        // Jika belum diizinkan, minta izin notifikasi
+        Notification.requestPermission().then((permission) => {
+          if (permission === "granted") {
+            // Munculkan notifikasi
+            new Notification("Jadwal Sholat", { body: message });
+          }
+        });
+      }
+    }
+
+    // Fungsi untuk melakukan test notifikasi
+    function testNotification() {
+      showNotification(
+        "Ini adalah contoh notifikasi di luar jadwal waktu sholat."
+      );
+    }
+
+    // Otomatis panggil fungsi getLocation saat halaman dimuat
+    window.onload = function () {
+      getLocation();
+      // load surat
+      loadSurahOptions();
+      // load doa
+      displayRandomDoa();
+      // Panggil fungsi testNotification setelah 5 detik untuk melakukan test notifikasi
+      setTimeout(testNotification, 5000);
+    };
+
+    // ==========================================Quran======================================================= \\
+
+    function loadAyahs() {
+      const surahSelect = document.getElementById("surahSelect");
+      const pageSelect = document.getElementById("pageSelect");
+      const ayahContainer = document.getElementById("ayahContainer");
+
+      const surahNumber = surahSelect.value;
+      const page = pageSelect.value;
+
+      // Hitung indeks awal dan akhir untuk mengambil ayat-ayat
+      const startIndex = (page - 1) * 10 + 1;
+
+      // Ambil data dari API sesuai dengan nomor surat dan indeks ayat
+      const apiUrl = `https://web-api.qurankemenag.net/quran-ayah?start=${startIndex - 1
+        }&limit=10&surah=${surahNumber}`;
+
+      fetch(apiUrl)
+        .then((response) => response.json())
+        .then((data) => {
+          // Bersihkan kontainer sebelum menambahkan ayat-ayat baru
+          ayahContainer.innerHTML = "";
+
+          // Tampilkan setiap ayat
+          data.data.forEach((ayah) => {
+            const ayahElement = document.createElement("div");
+            ayahElement.classList.add("ayah-container");
+
+            ayahElement.innerHTML = `
+              <div class="arabic">${ayah.arabic}</div>
+                <p class="translation"> ${ayah.latin}</p>
+              
+              <p class="translation">${ayah.translation}</p>
+              ${ayah.footnotes
+                ? `<p class="footnotes"><em>${ayah.footnotes}</em></p>`
+                : ""
+              }
+            `;
+            ayahContainer.appendChild(ayahElement);
+            // Tampilkan nama surat MASIH ERROR
+            const namaElement = document.createElement("div");
+            namaElement.innerHTML = `<p class="translation"><strong>Surah ${ayah.surah.latin} - ${ayah.surah.translation}</strong></p>`;
+          });
+        })
+        .catch((error) => console.error("Error fetching data:", error));
+    }
+
+    function loadPageOptions() {
+      const surahSelect = document.getElementById("surahSelect");
+      const pageSelect = document.getElementById("pageSelect");
+
+      const surahNumber = surahSelect.value;
+
+      // Ambil data dari API sesuai dengan nomor surat untuk mendapatkan jumlah ayat
+      const apiUrl = `https://web-api.qurankemenag.net/quran-ayah?start=0&limit=1&surah=${surahNumber}`;
+
+      fetch(apiUrl)
+        .then((response) => response.json())
+        .then((data) => {
+          const totalAyahs = data.data[0].surah.num_ayah;
+
+          // Hitung jumlah halaman berdasarkan jumlah ayat
+          const totalPages = Math.ceil(totalAyahs / 10);
+
+          // Bersihkan opsi sebelum menambahkan yang baru
+          pageSelect.innerHTML = "";
+
+          // Tambahkan opsi halaman
+          for (let i = 1; i <= totalPages; i++) {
+            const option = document.createElement("option");
+            option.value = i;
+            option.textContent = `Page ${i}`;
+            pageSelect.appendChild(option);
+          }
+
+          // Muat ayat setelah memuat opsi halaman
+          loadAyahs();
+        })
+        .catch((error) => console.error("Error fetching data:", error));
+    }
+
+    // Muat opsi surat saat halaman pertama kali dimuat
+    function loadSurahOptions() {
+      const surahSelect = document.getElementById("surahSelect");
+
+      // Tambahkan opsi surat dari 1 hingga 114
+      for (let i = 1; i <= 114; i++) {
+        const option = document.createElement("option");
+        option.value = i;
+        option.textContent = `Surat ${i}`;
+        surahSelect.appendChild(option);
+      }
+
+      // Muat opsi halaman setelah memuat opsi surat
+      loadPageOptions();
+    }
+
+    // ============================================DOA==================================================== \\
+
+    // Fungsi untuk mendapatkan doa secara acak dari array doas
+    async function getRandomDoa() {
+      const response = await fetch('doa1.json');
+      const doas = await response.json();
+
+      const randomIndex = Math.floor(Math.random() * doas.kumpulan.doas.length);
+      return doas.kumpulan.doas[randomIndex];
+    }
+
+    // Fungsi untuk menampilkan doa pada halaman
+    async function displayRandomDoa() {
+      const randomDoa = await getRandomDoa();
+
+      document.getElementById('doa-title').innerText = randomDoa.nama;
+      document.getElementById('doa-text').innerText = randomDoa.lafal;
+      document.getElementById('doa-transliteration').innerText = randomDoa.transliterasi;
+      document.getElementById('doa-translation').innerText = randomDoa.arti;
+      document.getElementById('doa-history').innerText = "Riwayat: " + randomDoa.riwayat;
+    }
+
+  </script>
+</head>
+
+<body>
+  <div class="container">
+    <div class="jumbotron text-center">
+      <h1 class="display-4">Jadwal Sholat</h1>
+      <p class="lead">Lihat jadwal sholat dan waktu sholat berikutnya</p>
+    </div>
+
+    <div id="location" class="card">
+      <div class="card-body">
+        <h5 class="card-title">Letak Daerah</h5>
+        <div id="area-location"></div>
+      </div>
+    </div>
+
+    <div id="prayer-timings" class="card">
+      <div class="card-body">
+        <h5 class="card-title">Jadwal Sholat</h5>
+        <div id="prayer-timings-content"></div>
+      </div>
+    </div>
+
+    <div id="countdown" class="card">
+      <div class="card-body">
+        <h5 class="card-title">Hitung Mundur Waktu Sholat</h5>
+        <div id="countdown-content"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <p class="mt-4">Waktu Sekarang: <span id="real-time"></span></p>
+      </div>
+    </div>
+
+    <!-- Doa Section -->
+    <div class="card">
+      <div class="card-body">
+        <h1 class="text-center mb-4">Doa Harian</h1>
+        <div id="doa-title"></div>
+        <div id="doa-text"></div>
+        <div id="doa-transliteration"></div>
+        <div id="doa-translation"></div>
+        <div id="doa-history"></div>
+      </div>
+    </div>
+  </div>
+  <!-- Alquran Section -->
+  <div class="container ayah-container">
+    <h1 class="text-center mb-4">Al-Qur'an Digital</h1>
+
+    <div class="form-group row">
+      <label for="surahSelect" class="col-sm-2 col-form-label">Pilih Nomor Surat:</label>
+      <div class="col-sm-4">
+        <select id="surahSelect" class="form-control" onchange="loadPageOptions()">
+          <!-- Opsi untuk nomor surat akan diisi secara dinamis menggunakan JavaScript -->
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group row">
+      <label for="pageSelect" class="col-sm-2 col-form-label">Pilih Halaman:</label>
+      <div class="col-sm-4">
+        <select id="pageSelect" class="form-control" onchange="loadAyahs()">
+          <!-- Opsi untuk halaman akan diisi secara dinamis menggunakan JavaScript -->
+        </select>
+      </div>
+    </div>
+    <div id="namaElement"></div>
+    <div id="ayahContainer">
+      <!-- Tempat untuk menampilkan ayat-ayat -->
+    </div>
+  </div>
+
+
+  <!-- Tambahkan Bootstrap JS dan script tags untuk jQuery dan Popper.js -->
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  <!-- Your existing script tags remain unchanged -->
+</body>
+
+</html>
